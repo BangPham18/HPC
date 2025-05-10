@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  master:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dl-training:latest
+    command: python scripts/distributed.py --rank 0 --world-size ${WORLD_SIZE} --master-addr master
+    environment:
+      - MASTER_ADDR=master
+      - MASTER_PORT=29500
+      - WORLD_SIZE=${WORLD_SIZE:-3}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - dl-network
+
+  worker:
+    image: dl-training:latest
+    command: python scripts/distributed.py --master-addr master
+    environment:
+      - MASTER_ADDR=master
+      - MASTER_PORT=29500
+      - WORLD_SIZE=${WORLD_SIZE}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    deploy:
+      replicas: ${WORKER_REPLICAS}
+      placement:
+        constraints:
+          - node.role == worker
+    depends_on:
+      - master
+    networks:
+      - dl-network
+
+networks:
+  dl-network:
+    driver: overlay
